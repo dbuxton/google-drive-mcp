@@ -208,10 +208,12 @@ def docs_add_comment(
     """
     Add a comment anchored to specific text in a Google Doc.
 
-    The comment appears as highlighted text with a sidebar comment — exactly
-    like Ctrl+Alt+M in Docs. Unlike quotedFileContent (which shows as
-    "original content deleted"), this creates a real named range and attaches
-    the comment to it.
+    NOTE: Due to a Drive API limitation, comments created via the API show as
+    "Original content deleted" in the Docs UI even with a valid named range anchor.
+    The comments ARE readable via docs_read_comments and the Docs 💬 panel.
+    True inline anchoring requires Apps Script (DocumentApp.addComment) which
+    needs the script.projects OAuth scope — run: gog auth add <email> --services appscript
+    to enable it, then the add_comment implementation can be switched to Apps Script.
 
     Args:
         doc_id:      Google Doc ID (from the URL: /document/d/{DOC_ID}/edit)
@@ -226,6 +228,89 @@ def docs_add_comment(
     """
     result = docs_edit.add_comment(doc_id, comment, anchor_text, occurrence)
     return json.dumps(result, indent=2)
+
+
+@mcp.tool
+def docs_reply_to_comment(doc_id: str, comment_id: str, reply: str) -> str:
+    """
+    Reply to an existing comment on a Google Doc.
+
+    Args:
+        doc_id:     Google Doc ID
+        comment_id: ID of the comment to reply to (from docs_read_comments)
+        reply:      Reply text to post
+
+    Returns:
+        JSON with: ok, reply_id, comment_id, content
+    """
+    from googleapiclient.discovery import build
+    creds = docs_edit._load_creds()
+    drive = build("drive", "v3", credentials=creds)
+    result = drive.replies().create(
+        fileId=doc_id,
+        commentId=comment_id,
+        body={"content": reply},
+        fields="id,content,createdTime",
+    ).execute()
+    return json.dumps({
+        "ok": True,
+        "reply_id": result.get("id"),
+        "comment_id": comment_id,
+        "content": result.get("content"),
+    }, indent=2)
+
+
+@mcp.tool
+def docs_resolve_comment(doc_id: str, comment_id: str, reply: str = "") -> str:
+    """
+    Resolve (close) a comment on a Google Doc, optionally with a final reply.
+
+    Args:
+        doc_id:     Google Doc ID
+        comment_id: ID of the comment to resolve (from docs_read_comments)
+        reply:      Optional reply text to post before resolving
+
+    Returns:
+        JSON with: ok, comment_id, resolved
+    """
+    from googleapiclient.discovery import build
+    creds = docs_edit._load_creds()
+    drive = build("drive", "v3", credentials=creds)
+
+    if reply:
+        drive.replies().create(
+            fileId=doc_id,
+            commentId=comment_id,
+            body={"content": reply},
+            fields="id",
+        ).execute()
+
+    drive.comments().update(
+        fileId=doc_id,
+        commentId=comment_id,
+        body={"resolved": True},
+        fields="id,resolved",
+    ).execute()
+    return json.dumps({"ok": True, "comment_id": comment_id, "resolved": True}, indent=2)
+
+
+@mcp.tool
+def docs_delete_comment(doc_id: str, comment_id: str) -> str:
+    """
+    Delete a comment from a Google Doc.
+
+    Args:
+        doc_id:     Google Doc ID
+        comment_id: ID of the comment to delete
+
+    Returns:
+        JSON with: ok, comment_id
+    """
+    from googleapiclient.discovery import build
+    creds = docs_edit._load_creds()
+    drive = build("drive", "v3", credentials=creds)
+    drive.comments().delete(fileId=doc_id, commentId=comment_id).execute()
+    return json.dumps({"ok": True, "comment_id": comment_id}, indent=2)
 
 
 @mcp.tool
