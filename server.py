@@ -229,6 +229,64 @@ def docs_add_comment(
 
 
 @mcp.tool
+def docs_read_comments(doc_id: str, include_resolved: bool = False) -> str:
+    """
+    Read all comments on a Google Doc.
+
+    Returns each comment with its content, author, anchor status, and whether
+    it's resolved or deleted. Useful for auditing what comments exist and
+    whether they are properly anchored to text.
+
+    Args:
+        doc_id:           Google Doc ID
+        include_resolved: Include resolved/deleted comments (default False)
+
+    Returns:
+        JSON array of comments with id, content, author, anchored, resolved, deleted,
+        anchored_to (the named range id if anchored), created_time
+    """
+    from googleapiclient.discovery import build
+    import json as _json
+
+    creds = docs_edit._load_creds()
+    drive = build("drive", "v3", credentials=creds)
+
+    resp = drive.comments().list(
+        fileId=doc_id,
+        fields="comments(id,content,anchor,resolved,deleted,author,createdTime,quotedFileContent)",
+        pageSize=100,
+    ).execute()
+
+    results = []
+    for c in resp.get("comments", []):
+        if not include_resolved and (c.get("deleted") or c.get("resolved")):
+            continue
+        anchor = c.get("anchor") or ""
+        named_range_id = None
+        if anchor:
+            try:
+                a = _json.loads(anchor)
+                for part in a.get("a", []):
+                    if part.get("t") == "r":
+                        named_range_id = part.get("v")
+            except Exception:
+                pass
+        results.append({
+            "id": c["id"],
+            "content": c.get("content", ""),
+            "author": c.get("author", {}).get("displayName", "?"),
+            "anchored": bool(anchor),
+            "named_range_id": named_range_id,
+            "quoted_text": (c.get("quotedFileContent") or {}).get("value", ""),
+            "resolved": c.get("resolved", False),
+            "deleted": c.get("deleted", False),
+            "created": c.get("createdTime", ""),
+        })
+
+    return json.dumps({"count": len(results), "comments": results}, indent=2)
+
+
+@mcp.tool
 def docs_list(query: str = "", limit: int = 20) -> str:
     """
     List Google Docs from Drive, optionally filtered by a search query.
