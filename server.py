@@ -1,22 +1,33 @@
 #!/usr/bin/env python3
 """
-google-docs-mcp — MCP server for surgical Google Docs editing
+google-drive-mcp — Surgical Google Docs editing for AI agents
 =============================================================
-Exposes Google Docs operations as MCP tools. Unlike most Google Docs
-integrations that only support read/create, this server provides
-surgical in-place editing that preserves document history, comments,
-and suggestions.
+Exposes Google Docs and Drive operations as MCP tools.
 
-The core abstraction: search-by-text, not by character index.
+Core abstraction: search-by-text, not by character index.
 LLMs describe WHAT they want to change; the server figures out WHERE.
+All edits use real batchUpdate — version history, comments, and
+suggestions are preserved.
+
+Tools:
+  Editing:  docs_get, docs_search_replace, docs_insert_after,
+            docs_insert_before, docs_delete_paragraph, docs_append,
+            docs_batch_replace
+  Comments: docs_add_comment, docs_read_comments, docs_reply_to_comment,
+            docs_resolve_comment, docs_delete_comment
+  Manage:   docs_list, docs_create
 
 Auth (in priority order):
-  1. GOOGLE_DOCS_TOKEN_FILE env var — path to gog-exported token JSON
-  2. GOG_KEYRING_PASSWORD env var   — auto-export from gog CLI
-  3. GOOGLE_DOCS_CREDENTIALS_JSON   — service account JSON (Workspace admin only)
+  1. GOOGLE_DRIVE_MCP_TOKEN env var  — standalone token (auth_setup.py)
+  2. GOOGLE_DOCS_TOKEN_FILE env var  — legacy alias
+  3. ~/.google-drive-mcp/token.json  — default standalone location
+  4. GOG_KEYRING_PASSWORD env var    — auto-export from gog CLI
 
-Transport:
-  stdio (for Claude Desktop / OpenClaw MCP config)
+Setup:
+  python3 auth_setup.py --credentials ~/credentials.json
+  python3 auth_setup.py --credentials ~/credentials.json --headless  # no browser
+
+Transport: stdio (Claude Desktop / OpenClaw MCP config)
 """
 
 from __future__ import annotations
@@ -39,18 +50,36 @@ logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
 mcp = FastMCP(
     name="google-drive-mcp",
     instructions="""
-Google Docs surgical editing tools.
+Surgical Google Docs editing — search by text, never by character index.
 
-These tools let you read and modify Google Docs in-place, preserving
-version history, comments, and suggestions. All operations use text
-anchors — you describe what text to find, never deal with character indices.
+EDITING TOOLS:
+  docs_get               Read document structure (paragraphs + plain text)
+  docs_search_replace    Find and replace (occurrence-targeted or all)
+  docs_insert_after      Insert paragraph after anchor text
+  docs_insert_before     Insert paragraph before anchor text
+  docs_delete_paragraph  Delete paragraphs matching anchor text
+  docs_append            Append paragraph at end of document
+  docs_batch_replace     Multiple replacements atomically (one API call)
 
-Typical workflow:
-1. docs_get — read the document structure to understand content
-2. docs_search_replace / docs_insert_after / etc. — make targeted edits
-3. docs_get again — verify changes look right
+COMMENT TOOLS:
+  docs_add_comment       Add comment anchored to specific text
+  docs_read_comments     List all comments with anchor/resolve status
+  docs_reply_to_comment  Reply to an existing comment
+  docs_resolve_comment   Resolve (close) a comment, optionally with reply
+  docs_delete_comment    Delete a comment
 
-For listing or creating documents, use gog CLI or Google Drive API.
+DOCUMENT MANAGEMENT:
+  docs_list              List recent docs (optional search query)
+  docs_create            Create a new document
+
+TYPICAL WORKFLOW:
+  1. docs_get — read document to understand structure
+  2. docs_search_replace / docs_insert_after / etc. — make targeted edits
+  3. docs_get — verify changes
+  For review: docs_add_comment → docs_read_comments → docs_resolve_comment
+
+All edits preserve version history. Use short, distinctive anchor_text
+(a few unique words) for reliable text matching.
 """.strip(),
 )
 
