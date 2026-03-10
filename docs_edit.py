@@ -601,6 +601,121 @@ def batch_replace(doc_id: str, replacements: list[dict]) -> dict:
     }
 
 
+def add_comment(
+    doc_id: str,
+    comment: str,
+    anchor_text: str,
+    occurrence: int = 1,
+) -> dict:
+    """
+    Add a comment anchored to specific text in a Google Doc.
+
+    Unlike the Drive API's quotedFileContent (which shows as "original content
+    deleted"), this creates a real named range in the document and attaches the
+    comment to it — so it appears as highlighted text with a sidebar comment,
+    exactly like a human adding a comment via Ctrl+Alt+M.
+
+    Steps:
+      1. Find anchor_text in the document → get character indices
+      2. CreateNamedRangeRequest via batchUpdate → get named_range_id
+      3. Drive API comments.create with anchor JSON → attached comment
+
+    Args:
+        doc_id:      Google Doc ID
+        comment:     Comment text to post
+        anchor_text: Text in the document to attach the comment to
+        occurrence:  Which occurrence to anchor to (default 1 = first)
+
+    Returns:
+        {"ok": True, "comment_id": "...", "anchored_to": "...", "at_index": N,
+         "named_range_id": "..."}
+    """
+    import uuid
+
+    docs_service = _get_service("docs", "v1")
+    doc = docs_service.documents().get(documentId=doc_id).execute()
+    paragraphs = _extract_paragraphs(doc)
+    full_text, text_map = _build_full_text_map(paragraphs)
+
+    # Find all occurrences of anchor_text
+    matches = []
+    search_from = 0
+    while True:
+        pos = full_text.find(anchor_text, search_from)
+        if pos == -1:
+            break
+        matches.append((pos, pos + len(anchor_text)))
+        search_from = pos + 1
+
+    if not matches:
+        raise ValueError(f"Anchor text not found in document: {anchor_text!r}")
+
+    target_idx = occurrence - 1
+    if target_idx >= len(matches):
+        raise ValueError(
+            f"Occurrence {occurrence} not found — document has {len(matches)} "
+            f"occurrence(s) of {anchor_text!r}"
+        )
+
+    ft_start, ft_end = matches[target_idx]
+    doc_start = _full_text_pos_to_doc_index(ft_start, text_map)
+    doc_end = _full_text_pos_to_doc_index(ft_end - 1, text_map) + 1
+
+    # Create a named range at the anchor position
+    range_name = f"comment-anchor-{uuid.uuid4().hex[:12]}"
+    result = docs_service.documents().batchUpdate(
+        documentId=doc_id,
+        body={
+            "requests": [{
+                "createNamedRange": {
+                    "name": range_name,
+                    "range": {
+                        "startIndex": doc_start,
+                        "endIndex": doc_end,
+                        "segmentId": "",  # empty = main document body
+                    },
+                }
+            }]
+        },
+    ).execute()
+
+    named_range_id = (
+        result.get("replies", [{}])[0]
+        .get("createNamedRange", {})
+        .get("namedRangeId")
+    )
+    if not named_range_id:
+        raise RuntimeError("Failed to create named range — no ID returned by Docs API")
+
+    # Build the Drive API anchor JSON for a Google Docs named range
+    anchor_json = json.dumps({
+        "r": "head",
+        "a": [
+            {"t": "g", "v": doc_id},
+            {"t": "r", "v": named_range_id},
+        ],
+    })
+
+    from googleapiclient.discovery import build
+    drive = build("drive", "v3", credentials=_load_creds())
+    comment_result = drive.comments().create(
+        fileId=doc_id,
+        body={
+            "content": comment,
+            "anchor": anchor_json,
+        },
+        fields="id,content,anchor",
+    ).execute()
+
+    return {
+        "ok": True,
+        "comment_id": comment_result.get("id"),
+        "anchored_to": full_text[ft_start:ft_end],
+        "at_index": doc_start,
+        "named_range_id": named_range_id,
+    }
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -657,6 +772,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help='JSON array: [{"find":"...","replace":"...","occurrence":1}]',
     )
 
+    # add_comment
+    ac = sub.add_parser("add_comment", help="Add a comment anchored to specific text")
+    ac.add_argument("doc_id")
+    ac.add_argument("--anchor", required=True, help="Text in the document to anchor the comment to")
+    ac.add_argument("--comment", required=True, help="Comment text to post")
+    ac.add_argument("--occurrence", type=int, default=1, help="Which occurrence to anchor to (default 1)")
+
     return p
 
 
@@ -683,6 +805,8 @@ def main():
         elif args.command == "batch_replace":
             replacements = json.loads(args.replacements)
             result = batch_replace(args.doc_id, replacements)
+        elif args.command == "add_comment":
+            result = add_comment(args.doc_id, args.comment, args.anchor, args.occurrence)
         else:
             parser.print_help()
             sys.exit(1)

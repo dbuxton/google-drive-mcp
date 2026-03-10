@@ -199,6 +199,36 @@ def docs_batch_replace(doc_id: str, replacements_json: str) -> str:
 
 
 @mcp.tool
+def docs_add_comment(
+    doc_id: str,
+    comment: str,
+    anchor_text: str,
+    occurrence: int = 1,
+) -> str:
+    """
+    Add a comment anchored to specific text in a Google Doc.
+
+    The comment appears as highlighted text with a sidebar comment — exactly
+    like Ctrl+Alt+M in Docs. Unlike quotedFileContent (which shows as
+    "original content deleted"), this creates a real named range and attaches
+    the comment to it.
+
+    Args:
+        doc_id:      Google Doc ID (from the URL: /document/d/{DOC_ID}/edit)
+        comment:     The comment text to post
+        anchor_text: Exact text in the document to attach the comment to.
+                     Use a short, unique phrase (a few words) for reliable matching.
+        occurrence:  Which occurrence of anchor_text to use (default 1 = first).
+                     Use 2, 3, etc. if the text appears multiple times.
+
+    Returns:
+        JSON with: ok, comment_id, anchored_to (matched text), at_index, named_range_id
+    """
+    result = docs_edit.add_comment(doc_id, comment, anchor_text, occurrence)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool
 def docs_list(query: str = "", limit: int = 20) -> str:
     """
     List Google Docs from Drive, optionally filtered by a search query.
