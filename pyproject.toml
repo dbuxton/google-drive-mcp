@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "google-drive-mcp"
@@ -26,6 +26,5 @@ google-drive-mcp-auth = "auth_setup:main"
 Homepage = "https://github.com/dbuxton/google-drive-mcp"
 Repository = "https://github.com/dbuxton/google-drive-mcp"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["*.py"]
+[tool.setuptools]
+py-modules = ["server", "auth_setup", "docs_edit"]

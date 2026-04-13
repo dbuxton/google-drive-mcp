@@ -14,12 +14,27 @@ This server uses the same abstraction as code editors: **search by text, not by 
 
 ## Quick start
 
-### 1. Install
+### 1. Run directly from GitHub
 
 ```bash
-git clone https://github.com/dbuxton/google-drive-mcp
-cd google-drive-mcp
-pip install -r requirements.txt
+uvx --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp --help
+```
+
+That command downloads the package, creates an isolated environment, installs dependencies, and runs the `google-drive-mcp` entry point.
+
+No PyPI release is required. `uvx` can execute the tool straight from the GitHub repository.
+
+To pin to a branch, tag, or commit, add a ref to the URL:
+
+```bash
+uvx --from git+https://github.com/dbuxton/google-drive-mcp@main google-drive-mcp --help
+```
+
+If you prefer a persistent local install instead of `uvx`, use:
+
+```bash
+uv tool install --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp
+uv tool install --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp-auth
 ```
 
 ### 2. Create a Google Cloud OAuth app
@@ -39,19 +54,22 @@ pip install -r requirements.txt
 
 **Normal — browser opens automatically:**
 ```bash
-python3 auth_setup.py --credentials ~/credentials.json
+uvx --from git+https://github.com/dbuxton/google-drive-mcp \
+  google-drive-mcp-auth --credentials ~/credentials.json
 ```
 
 **Headless / remote server — no browser on device:**
 ```bash
-python3 auth_setup.py --credentials ~/credentials.json --headless
+uvx --from git+https://github.com/dbuxton/google-drive-mcp \
+  google-drive-mcp-auth --credentials ~/credentials.json --headless
 # Prints a URL → open on any device (phone, laptop, etc.)
 # Paste the full redirect URL back into the terminal
 ```
 
 **Already have an auth code:**
 ```bash
-python3 auth_setup.py --credentials ~/credentials.json --code "4/0Afr..."
+uvx --from git+https://github.com/dbuxton/google-drive-mcp \
+  google-drive-mcp-auth --credentials ~/credentials.json --code "4/0Afr..."
 ```
 
 Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--out /path/to/token.json`.
@@ -63,8 +81,8 @@ Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--
 {
   "mcpServers": {
     "google-drive": {
-      "command": "python3",
-      "args": ["/path/to/google-drive-mcp/server.py"],
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/dbuxton/google-drive-mcp", "google-drive-mcp"],
       "env": {
         "GOOGLE_DRIVE_MCP_TOKEN": "/Users/you/.google-drive-mcp/token.json"
       }
@@ -79,11 +97,26 @@ Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--
   "mcp": {
     "servers": {
       "google-drive": {
-        "command": "python3",
-        "args": ["/path/to/server.py"],
+        "command": "uvx",
+        "args": ["--from", "git+https://github.com/dbuxton/google-drive-mcp", "google-drive-mcp"],
         "env": {
           "GOOGLE_DRIVE_MCP_TOKEN": "~/.google-drive-mcp/token.json"
         }
+      }
+    }
+  }
+}
+```
+
+**Local checkout during development:**
+```json
+{
+  "mcpServers": {
+    "google-drive": {
+      "command": "uvx",
+      "args": ["--from", "/absolute/path/to/google-drive-mcp", "google-drive-mcp"],
+      "env": {
+        "GOOGLE_DRIVE_MCP_TOKEN": "/Users/you/.google-drive-mcp/token.json"
       }
     }
   }
