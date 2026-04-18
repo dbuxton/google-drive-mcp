@@ -142,16 +142,22 @@ function inspectDocumentCommentApi(docId) {
     ]
 
 
-def inspect_comment_api(doc_id: str, *, title: str = "google-drive-mcp comment probe") -> dict:
+def inspect_comment_api(
+    doc_id: str,
+    *,
+    title: str = "google-drive-mcp comment probe",
+    script_id: str | None = None,
+) -> dict:
     access_token = _refresh_access_token()
 
-    project = _api_request(
-        access_token,
-        "POST",
-        "/projects",
-        {"title": title},
-    )
-    script_id = project["scriptId"]
+    if script_id is None:
+        project = _api_request(
+            access_token,
+            "POST",
+            "/projects",
+            {"title": title},
+        )
+        script_id = project["scriptId"]
 
     _api_request(
         access_token,
@@ -205,6 +211,7 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect = sub.add_parser("inspect-comment-api", help="Check whether DocumentApp exposes comment methods.")
     inspect.add_argument("--doc-id", required=True, help="Google Doc ID to open during the probe")
     inspect.add_argument("--title", default="google-drive-mcp comment probe", help="Temporary Apps Script project title")
+    inspect.add_argument("--script-id", help="Existing Apps Script project ID to update and execute instead of creating a temporary one")
     return parser
 
 
@@ -214,7 +221,11 @@ def main() -> int:
 
     try:
         if args.command == "inspect-comment-api":
-            result = inspect_comment_api(args.doc_id, title=args.title)
+            result = inspect_comment_api(
+                args.doc_id,
+                title=args.title,
+                script_id=args.script_id,
+            )
             print(json.dumps(result, indent=2))
             return 0
     except AppsScriptApiDisabledError as e:
