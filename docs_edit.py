@@ -651,10 +651,14 @@ def add_comment(
     """
     Add a comment anchored to specific text in a Google Doc.
 
-    Unlike the Drive API's quotedFileContent (which shows as "original content
-    deleted"), this creates a real named range in the document and attaches the
-    comment to it — so it appears as highlighted text with a sidebar comment,
-    exactly like a human adding a comment via Ctrl+Alt+M.
+    Current implementation detail: this creates a Docs named range and then
+    posts a Drive comment anchored to that named range.
+
+    Important limitation: despite the named range, Google Docs still renders
+    these API-created comments as "Original content deleted" in the UI rather
+    than as a proper inline highlight. This function is kept for API-level
+    comment access, but a real Apps Script automation path is being investigated
+    for true inline Docs comments.
 
     Steps:
       1. Find anchor_text in the document → get character indices

@@ -311,7 +311,17 @@ docs_add_comment(
 )
 ```
 
-> **Note:** Due to a Drive API limitation, comments created via the API currently show as *"Original content deleted"* in the Docs UI rather than as inline highlights. The comments are fully readable via `docs_read_comments` and the Docs 💬 panel. True inline anchoring requires Apps Script — run auth with `--headless` to include the `script.projects` scope, which will enable an upgraded implementation.
+> **Note:** The current implementation uses Drive comments plus a Docs named range. In the Docs UI these still show as *"Original content deleted"* rather than as proper inline highlights. The comments are fully readable via `docs_read_comments` and the Docs 💬 panel.
+>
+> The next thing to try is Apps Script automation. For that path, auth must include the `script.*` scopes **and** the Google account must have the Apps Script API enabled at <https://script.google.com/home/usersettings>.
+>
+> A probe helper is included for this workstream:
+>
+> ```bash
+> python3 appscript_probe.py inspect-comment-api --doc-id <DOC_ID>
+> ```
+>
+> If the Apps Script API is still disabled for the account, the probe will stop with a clear message pointing at the settings page.
 
 ---
 
@@ -425,7 +435,7 @@ The auth setup requests these scopes:
 | `https://www.googleapis.com/auth/drive` | Access Drive files and comments |
 | `https://www.googleapis.com/auth/drive.readonly` | Read Drive file metadata |
 | `https://www.googleapis.com/auth/drive.file` | Per-file Drive access |
-| `https://www.googleapis.com/auth/script.projects` | Create Apps Script projects (inline comments) |
+| `https://www.googleapis.com/auth/script.projects` | Create Apps Script projects for comment-path experiments |
 | `https://www.googleapis.com/auth/script.deployments` | Deploy Apps Script functions |
 | `https://www.googleapis.com/auth/script.processes` | View script execution |
 | `openid`, `email`, `profile` | Identity |

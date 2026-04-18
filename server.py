@@ -238,12 +238,15 @@ def docs_add_comment(
     """
     Add a comment anchored to specific text in a Google Doc.
 
-    NOTE: Due to a Drive API limitation, comments created via the API show as
-    "Original content deleted" in the Docs UI even with a valid named range anchor.
-    The comments ARE readable via docs_read_comments and the Docs 💬 panel.
-    True inline anchoring requires Apps Script (DocumentApp.addComment) which
-    needs the script.projects OAuth scope — run: gog auth add <email> --services appscript
-    to enable it, then the add_comment implementation can be switched to Apps Script.
+    NOTE: The current implementation uses the Drive comments API plus a Docs
+    named range. In the Docs UI this still shows as "Original content deleted"
+    rather than a proper inline comment highlight. The comments ARE readable via
+    docs_read_comments and the Docs 💬 panel.
+
+    The next path to investigate is Apps Script automation. The OAuth token must
+    include the script.* scopes, and the Google account must also have the Apps
+    Script API enabled at https://script.google.com/home/usersettings before
+    remote Apps Script project creation/execution will work.
 
     Args:
         doc_id:      Google Doc ID (from the URL: /document/d/{DOC_ID}/edit)
