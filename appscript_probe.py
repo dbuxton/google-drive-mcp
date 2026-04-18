@@ -20,6 +20,9 @@ Prerequisites:
 - An existing google-drive-mcp token with script.* scopes.
 - The Google account must have the Apps Script API enabled at:
   https://script.google.com/home/usersettings
+- For scripts.run to execute successfully, the temporary script must use the
+  same standard Google Cloud project as the OAuth client. A default Apps Script
+  project is not enough for remote execution.
 
 Usage:
     python3 appscript_probe.py inspect-comment-api --doc-id <DOC_ID>
@@ -37,6 +40,7 @@ import urllib.request
 import docs_edit
 
 APPS_SCRIPT_SETTINGS_URL = "https://script.google.com/home/usersettings"
+CLOUD_PROJECTS_GUIDE_URL = "https://developers.google.com/apps-script/guides/cloud-platform-projects"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCRIPT_API_BASE = "https://script.googleapis.com/v1"
 
@@ -86,6 +90,13 @@ def _api_request(access_token: str, method: str, path: str, body: dict | None = 
                 "Apps Script API is not enabled for this Google account. "
                 f"Open {APPS_SCRIPT_SETTINGS_URL} and enable it, then rerun this probe."
             ) from None
+        if e.code == 403 and "The caller does not have permission" in message:
+            raise AppsScriptProbeError(
+                "Apps Script execution is now getting past account-level enablement, but the API executable "
+                "still cannot run because the script project is not using the same standard Google Cloud "
+                "project as the OAuth client. A default Apps Script project is not enough for scripts.run. "
+                f"See {CLOUD_PROJECTS_GUIDE_URL}."
+            ) from None
         raise AppsScriptProbeError(f"Apps Script API request failed ({e.code}): {message}") from None
 
 
@@ -121,6 +132,8 @@ function inspectDocumentCommentApi(docId) {
         "timeZone": "Europe/London",
         "exceptionLogging": "STACKDRIVER",
         "runtimeVersion": "V8",
+        "oauthScopes": ["https://www.googleapis.com/auth/documents"],
+        "executionApi": {"access": "MYSELF"},
     }
 
     return [

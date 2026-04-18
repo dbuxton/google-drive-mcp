@@ -313,7 +313,7 @@ docs_add_comment(
 
 > **Note:** The current implementation uses Drive comments plus a Docs named range. In the Docs UI these still show as *"Original content deleted"* rather than as proper inline highlights. The comments are fully readable via `docs_read_comments` and the Docs 💬 panel.
 >
-> The next thing to try is Apps Script automation. For that path, auth must include the `script.*` scopes **and** the Google account must have the Apps Script API enabled at <https://script.google.com/home/usersettings>.
+> The next thing to try is Apps Script automation. For that path, auth must include the `script.*` scopes, the Google account must have the Apps Script API enabled at <https://script.google.com/home/usersettings>, **and** any script executed through `scripts.run` must use the same **standard Google Cloud project** as the OAuth client. A default Apps Script project is not enough for remote execution.
 >
 > A probe helper is included for this workstream:
 >
@@ -321,7 +321,7 @@ docs_add_comment(
 > python3 appscript_probe.py inspect-comment-api --doc-id <DOC_ID>
 > ```
 >
-> If the Apps Script API is still disabled for the account, the probe will stop with a clear message pointing at the settings page.
+> The probe now creates an API-executable deployment automatically. If account-level Apps Script access is still disabled, it stops with the settings-page message. If execution fails with a permission error, the next blocker is the shared standard Google Cloud project requirement documented at <https://developers.google.com/apps-script/guides/cloud-platform-projects>.
 
 ---
 
