@@ -138,6 +138,38 @@ Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--
 }
 ```
 
+### Optional: Apps Script bridge for bookmark-jump comments
+
+If you want `docs_add_comment(..., bookmark_jump=true)` to append a real
+`#bookmark=id...` jump URL into the comment body, set up one persistent Apps
+Script bridge project and expose its script ID via an env var.
+
+Required one-time setup:
+
+1. Enable the **Apps Script API** for the Google account at
+   <https://script.google.com/home/usersettings>
+2. Create a standalone Apps Script project to use as the bridge
+3. In that Apps Script project, open **Project Settings** and switch it to the
+   **same standard Google Cloud project** as the OAuth client used by
+   `google-drive-mcp`
+4. In that same Google Cloud project, ensure **Apps Script API** is enabled
+5. Set the bridge script ID in the MCP process environment:
+
+```bash
+export GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID="1C6nchmQRobIwK8ELFe29k-XV2t7mUnhKiSpEKHThXOFHAL6Ahy4_Xju4"
+```
+
+Example `uvx` launch with both token + Apps Script bridge:
+
+```bash
+GOOGLE_DRIVE_MCP_TOKEN="$HOME/.google-drive-mcp/token.json" \
+GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID="your-apps-script-id" \
+uvx --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp
+```
+
+If the Apps Script bridge is still using its hidden default project, `scripts.run`
+fails even when account-level Apps Script access is enabled.
+
 ---
 
 ## Tools reference
@@ -291,7 +323,7 @@ Returns `{id, title, webViewLink}`.
 
 ### Comments
 
-#### `docs_add_comment(doc_id, comment, anchor_text, occurrence)`
+#### `docs_add_comment(doc_id, comment, anchor_text, occurrence, include_anchor_text, bookmark_jump)`
 Add a comment anchored to specific text in the document.
 
 | Param | Type | Default | Description |
@@ -300,6 +332,8 @@ Add a comment anchored to specific text in the document.
 | `comment` | string | required | Comment text |
 | `anchor_text` | string | required | Text in the document to attach the comment to |
 | `occurrence` | int | `1` | Which occurrence of `anchor_text` to use |
+| `include_anchor_text` | bool | `true` | Append the matched anchor text into the comment body |
+| `bookmark_jump` | bool | `false` | Use the Apps Script bridge to create a bookmark and append a jump URL |
 
 Use a short, distinctive phrase for `anchor_text` — a few words that are unique enough to match exactly one location.
 
@@ -307,13 +341,14 @@ Use a short, distinctive phrase for `anchor_text` — a few words that are uniqu
 docs_add_comment(
   doc_id="...",
   anchor_text="unable to perform the Employee's duties",
-  comment="Legal risk: 3-month absence threshold may not satisfy Equality Act 2010 duty to make reasonable adjustments before terminating."
+  comment="Legal risk: 3-month absence threshold may not satisfy Equality Act 2010 duty to make reasonable adjustments before terminating.",
+  bookmark_jump=true
 )
 ```
 
 > **Note:** The current implementation uses Drive comments plus a Docs named range. In the Docs UI these still show as *"Original content deleted"* rather than as proper inline highlights. The comments are fully readable via `docs_read_comments` and the Docs 💬 panel.
 >
-> The next thing to try is Apps Script automation. For that path, auth must include the `script.*` scopes, the Google account must have the Apps Script API enabled at <https://script.google.com/home/usersettings>, **and** any script executed through `scripts.run` must use the same **standard Google Cloud project** as the OAuth client. A default Apps Script project is not enough for remote execution.
+> When `bookmark_jump=true`, the tool additionally uses Apps Script automation to create a bookmark at the anchor text and appends a `#bookmark=id...` jump URL into the comment body. This requires the `GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID` env var and the Apps Script bridge setup documented above.
 >
 > A probe helper is included for this workstream:
 >

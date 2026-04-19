@@ -129,41 +129,58 @@ def docs_search_replace(
 
 
 @mcp.tool
-def docs_insert_after(doc_id: str, anchor: str, text: str) -> str:
+def docs_insert_after(doc_id: str, anchor: str, text: str, rich: bool = True) -> str:
     """
     Insert a new paragraph immediately after the paragraph containing `anchor`.
 
     The anchor is matched case-insensitively as a substring of the paragraph.
-    The inserted text becomes a new paragraph with default (Normal Text) style.
+
+    Rich formatting is ON by default. Set rich=False to insert literal text.
+
+    Supported rich subset:
+      - # / ## / ### headings
+      - - item / * item bullet lists
+      - 1. item / 1) item numbered lists
+      - **bold**, *italic*, ***bold italic***
 
     Args:
         doc_id: Google Doc ID
         anchor: Text to search for to find the target paragraph
         text:   Text to insert as the new paragraph
+        rich:   If True (default), interpret simple markdown-like formatting natively
 
     Returns:
         JSON with: ok, inserted_after (matched paragraph preview), at_index
     """
-    result = docs_edit.insert_after(doc_id, anchor, text)
+    result = docs_edit.insert_after(doc_id, anchor, text, rich=rich)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool
-def docs_insert_before(doc_id: str, anchor: str, text: str) -> str:
+def docs_insert_before(doc_id: str, anchor: str, text: str, rich: bool = True) -> str:
     """
     Insert a new paragraph immediately before the paragraph containing `anchor`.
 
     The anchor is matched case-insensitively as a substring of the paragraph.
 
+    Rich formatting is ON by default. Set rich=False to insert literal text.
+
+    Supported rich subset:
+      - # / ## / ### headings
+      - - item / * item bullet lists
+      - 1. item / 1) item numbered lists
+      - **bold**, *italic*, ***bold italic***
+
     Args:
         doc_id: Google Doc ID
         anchor: Text to search for to find the target paragraph
         text:   Text to insert as the new paragraph
+        rich:   If True (default), interpret simple markdown-like formatting natively
 
     Returns:
         JSON with: ok, inserted_before (matched paragraph preview), at_index
     """
-    result = docs_edit.insert_before(doc_id, anchor, text)
+    result = docs_edit.insert_before(doc_id, anchor, text, rich=rich)
     return json.dumps(result, indent=2)
 
 
@@ -187,18 +204,27 @@ def docs_delete_paragraph(doc_id: str, anchor: str) -> str:
 
 
 @mcp.tool
-def docs_append(doc_id: str, text: str) -> str:
+def docs_append(doc_id: str, text: str, rich: bool = True) -> str:
     """
     Append a new paragraph at the end of a Google Doc.
+
+    Rich formatting is ON by default. Set rich=False to append literal text.
+
+    Supported rich subset:
+      - # / ## / ### headings
+      - - item / * item bullet lists
+      - 1. item / 1) item numbered lists
+      - **bold**, *italic*, ***bold italic***
 
     Args:
         doc_id: Google Doc ID
         text:   Text to append as the final paragraph
+        rich:   If True (default), interpret simple markdown-like formatting natively
 
     Returns:
         JSON with: ok, appended (text preview), at_index
     """
-    result = docs_edit.append(doc_id, text)
+    result = docs_edit.append(doc_id, text, rich=rich)
     return json.dumps(result, indent=2)
 
 
@@ -234,6 +260,8 @@ def docs_add_comment(
     comment: str,
     anchor_text: str,
     occurrence: int = 1,
+    include_anchor_text: bool = True,
+    bookmark_jump: bool = False,
 ) -> str:
     """
     Add a comment anchored to specific text in a Google Doc.
@@ -248,6 +276,14 @@ def docs_add_comment(
     Script API enabled at https://script.google.com/home/usersettings before
     remote Apps Script project creation/execution will work.
 
+    By default the tool also appends the matched anchor text into the comment
+    body so the user can understand what was targeted even though the Docs UI
+    does not render a proper inline highlight with the current API path.
+
+    When bookmark_jump=True, the tool also uses a persistent Apps Script bridge
+    (configured via GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID) to create a bookmark at the
+    target text, then appends a #bookmark jump URL into the comment body.
+
     Args:
         doc_id:      Google Doc ID (from the URL: /document/d/{DOC_ID}/edit)
         comment:     The comment text to post
@@ -255,11 +291,23 @@ def docs_add_comment(
                      Use a short, unique phrase (a few words) for reliable matching.
         occurrence:  Which occurrence of anchor_text to use (default 1 = first).
                      Use 2, 3, etc. if the text appears multiple times.
+        include_anchor_text: If True (default), append the matched anchor text
+                     excerpt into the comment body for human readability.
+        bookmark_jump: If True, create an Apps Script bookmark and append a
+                     jump URL into the comment body. Requires the Apps Script
+                     bridge env var setup documented in the README.
 
     Returns:
         JSON with: ok, comment_id, anchored_to (matched text), at_index, named_range_id
     """
-    result = docs_edit.add_comment(doc_id, comment, anchor_text, occurrence)
+    result = docs_edit.add_comment(
+        doc_id,
+        comment,
+        anchor_text,
+        occurrence,
+        include_anchor_text=include_anchor_text,
+        bookmark_jump=bookmark_jump,
+    )
     return json.dumps(result, indent=2)
 
 
