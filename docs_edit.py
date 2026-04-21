@@ -21,9 +21,13 @@ Rich mode is ON by default and supports a small markdown-like subset:
     **bold**, *italic*, ***bold italic***
 
 Auth (in priority order):
-    1. GOOGLE_DOCS_TOKEN_FILE  env var → path to gog-exported token JSON
-    2. GOG_KEYRING_PASSWORD env var   → auto-export from gog
-    3. Default gog token path         → ~/.config/gog/token_export.json
+    1. GOOGLE_DOCS_MCP_TOKEN env var  → path to standalone token JSON
+    2. GOOGLE_DOCS_TOKEN_FILE env var → legacy gog-exported token JSON
+    3. Default standalone path        → ~/.google-docs-mcp/token.json
+    4. GOG_KEYRING_PASSWORD env var   → auto-export from gog
+    5. Cached gog token               → /tmp/docs_edit_token_cache.json
+
+Legacy GOOGLE_DRIVE_MCP_* env var aliases still work.
 
 Python API:
     from docs_edit import get, search_replace, insert_after, insert_before,
@@ -53,11 +57,19 @@ log = logging.getLogger("docs_edit")
 # Auth helpers
 # ---------------------------------------------------------------------------
 
-# Standalone default (auth_setup.py output)
-STANDALONE_TOKEN_PATH = Path.home() / ".google-drive-mcp" / "token.json"
-CLIENT_ID_ENV_VAR = "GOOGLE_DRIVE_MCP_CLIENT_ID"
-CLIENT_SECRET_ENV_VAR = "GOOGLE_DRIVE_MCP_CLIENT_SECRET"
-APPS_SCRIPT_ID_ENV_VAR = "GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID"
+# Standalone defaults (auth_setup.py output)
+STANDALONE_TOKEN_PATHS = [
+    Path.home() / ".google-docs-mcp" / "token.json",
+    Path.home() / ".google-drive-mcp" / "token.json",
+]
+TOKEN_ENV_VAR = "GOOGLE_DOCS_MCP_TOKEN"
+TOKEN_ENV_ALIASES = (TOKEN_ENV_VAR, "GOOGLE_DRIVE_MCP_TOKEN")
+CLIENT_ID_ENV_VAR = "GOOGLE_DOCS_MCP_CLIENT_ID"
+CLIENT_SECRET_ENV_VAR = "GOOGLE_DOCS_MCP_CLIENT_SECRET"
+CLIENT_ID_ENV_ALIASES = (CLIENT_ID_ENV_VAR, "GOOGLE_DRIVE_MCP_CLIENT_ID")
+CLIENT_SECRET_ENV_ALIASES = (CLIENT_SECRET_ENV_VAR, "GOOGLE_DRIVE_MCP_CLIENT_SECRET")
+APPS_SCRIPT_ID_ENV_VAR = "GOOGLE_DOCS_MCP_APPS_SCRIPT_ID"
+APPS_SCRIPT_ID_ENV_ALIASES = (APPS_SCRIPT_ID_ENV_VAR, "GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID")
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCRIPT_API_BASE = "https://script.googleapis.com/v1"
 
@@ -89,17 +101,27 @@ def _export_gog_token(email: str = "david@harriethq.com") -> dict:
             pass
 
 
+def _first_env(*names: str) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
+
+
 def _load_token() -> dict:
     """
     Load token data. Priority:
-      1. GOOGLE_DRIVE_MCP_TOKEN env var  (standalone auth_setup.py output)
-      2. GOOGLE_DOCS_TOKEN_FILE env var  (legacy / gog compat)
-      3. ~/.google-drive-mcp/token.json  (standalone default location)
-      4. GOG_KEYRING_PASSWORD auto-export (gog compat)
-      5. Cached gog token
+      1. GOOGLE_DOCS_MCP_TOKEN env var   (standalone auth_setup.py output)
+      2. GOOGLE_DRIVE_MCP_TOKEN env var  (backward-compatible alias)
+      3. GOOGLE_DOCS_TOKEN_FILE env var  (legacy / gog compat)
+      4. ~/.google-docs-mcp/token.json   (standalone default location)
+      5. ~/.google-drive-mcp/token.json  (backward-compatible fallback)
+      6. GOG_KEYRING_PASSWORD auto-export (gog compat)
+      7. Cached gog token
     """
-    # 1. Standalone env var
-    token_file = os.environ.get("GOOGLE_DRIVE_MCP_TOKEN")
+    # 1. Standalone env vars
+    token_file = _first_env(*TOKEN_ENV_ALIASES)
     if token_file:
         return json.loads(Path(token_file).read_text())
 
@@ -108,9 +130,10 @@ def _load_token() -> dict:
     if token_file:
         return json.loads(Path(token_file).read_text())
 
-    # 3. Default standalone location
-    if STANDALONE_TOKEN_PATH.exists():
-        return json.loads(STANDALONE_TOKEN_PATH.read_text())
+    # 3. Default standalone locations
+    for token_path in STANDALONE_TOKEN_PATHS:
+        if token_path.exists():
+            return json.loads(token_path.read_text())
 
     # 4. Gog auto-export
     try:
@@ -128,7 +151,8 @@ def _load_token() -> dict:
     raise RuntimeError(
         "No Google credentials found.\n"
         "Run: python3 auth_setup.py --credentials ~/credentials.json\n"
-        "Or set GOOGLE_DRIVE_MCP_TOKEN to your token file path."
+        "Or set GOOGLE_DOCS_MCP_TOKEN to your token file path "
+        "(legacy GOOGLE_DRIVE_MCP_TOKEN also works)."
     )
 
 
@@ -146,8 +170,8 @@ def _load_creds():
     token_uri = token_data.get("token_uri") or token_data.get("_token_uri", "https://oauth2.googleapis.com/token")
 
     # Environment override allows using external client credentials instead of a credentials.json file.
-    client_id = client_id or os.environ.get(CLIENT_ID_ENV_VAR)
-    client_secret = client_secret or os.environ.get(CLIENT_SECRET_ENV_VAR)
+    client_id = client_id or _first_env(*CLIENT_ID_ENV_ALIASES)
+    client_secret = client_secret or _first_env(*CLIENT_SECRET_ENV_ALIASES)
 
     # Gog compat: read from separate credentials.json if not embedded
     if not client_id and GOG_CREDENTIALS_PATH.exists():
@@ -158,7 +182,8 @@ def _load_creds():
     if not client_id or not client_secret:
         raise RuntimeError(
             "No OAuth client credentials found. Re-run auth_setup.py to generate a self-contained token, "
-            f"or set {CLIENT_ID_ENV_VAR} and {CLIENT_SECRET_ENV_VAR}."
+            f"or set {CLIENT_ID_ENV_VAR} and {CLIENT_SECRET_ENV_VAR} "
+            "(legacy GOOGLE_DRIVE_MCP_* aliases also work)."
         )
 
     scopes = [s for s in token_data.get("scopes", []) if s not in ("email", "openid")]
@@ -179,6 +204,20 @@ def _get_service(api: str = "docs", version: str = "v1"):
     """Build a Google API service client."""
     from googleapiclient.discovery import build
     return build(api, version, credentials=_load_creds())
+
+
+SUGGESTIONS_VIEW_MODE = "SUGGESTIONS_INLINE"
+
+
+def _get_document(service, doc_id: str) -> dict:
+    """
+    Fetch a document with inline suggestions so returned indices stay usable
+    for later batchUpdate calls.
+    """
+    return service.documents().get(
+        documentId=doc_id,
+        suggestionsViewMode=SUGGESTIONS_VIEW_MODE,
+    ).execute()
 
 
 def _refresh_access_token_stdlib() -> str:
@@ -270,11 +309,12 @@ def _create_bookmark_via_apps_script(
     *,
     script_id: str | None = None,
 ) -> dict:
-    script_id = script_id or os.environ.get(APPS_SCRIPT_ID_ENV_VAR)
+    script_id = script_id or _first_env(*APPS_SCRIPT_ID_ENV_ALIASES)
     if not script_id:
         raise RuntimeError(
             "bookmark_jump requires a persistent Apps Script bridge. "
-            f"Set {APPS_SCRIPT_ID_ENV_VAR} to the script project ID."
+            f"Set {APPS_SCRIPT_ID_ENV_VAR} to the script project ID "
+            "(legacy GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID also works)."
         )
 
     access_token = _refresh_access_token_stdlib()
@@ -656,7 +696,7 @@ def get(doc_id: str) -> dict:
         }
     """
     service = _get_service("docs", "v1")
-    doc = service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(service, doc_id)
     paragraphs = _extract_paragraphs(doc)
     return {
         "title": doc.get("title", ""),
@@ -716,7 +756,7 @@ def search_replace(
         return {"ok": True, "replaced": find, "occurrences_changed": count}
 
     # Targeted occurrence: find index manually
-    doc = service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(service, doc_id)
     paragraphs = _extract_paragraphs(doc)
     full_text, text_map = _build_full_text_map(paragraphs)
 
@@ -794,7 +834,7 @@ def insert_after(doc_id: str, anchor: str, text: str, rich: bool = True) -> dict
     The inserted text becomes a separate paragraph (newline appended automatically).
     """
     service = _get_service("docs", "v1")
-    doc = service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(service, doc_id)
     paragraphs = _extract_paragraphs(doc)
 
     target = None
@@ -834,7 +874,7 @@ def insert_before(doc_id: str, anchor: str, text: str, rich: bool = True) -> dic
     Insert text as a new paragraph before the paragraph containing `anchor`.
     """
     service = _get_service("docs", "v1")
-    doc = service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(service, doc_id)
     paragraphs = _extract_paragraphs(doc)
 
     target = None
@@ -877,7 +917,7 @@ def delete_paragraph(doc_id: str, anchor: str) -> dict:
     Returns count of deleted paragraphs.
     """
     service = _get_service("docs", "v1")
-    doc = service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(service, doc_id)
     paragraphs = _extract_paragraphs(doc)
 
     targets = [p for p in paragraphs if anchor.lower() in p.text.lower()]
@@ -915,7 +955,7 @@ def append(doc_id: str, text: str, rich: bool = True) -> dict:
     Append text as a new paragraph at the end of the document.
     """
     service = _get_service("docs", "v1")
-    doc = service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(service, doc_id)
 
     # Find the last content index (end of the body, before the body's closing)
     body_content = doc.get("body", {}).get("content", [])
@@ -963,7 +1003,7 @@ def batch_replace(doc_id: str, replacements: list[dict]) -> dict:
         {"ok": True, "applied": N, "changes": [...]}
     """
     service = _get_service("docs", "v1")
-    doc = service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(service, doc_id)
     paragraphs = _extract_paragraphs(doc)
     full_text, text_map = _build_full_text_map(paragraphs)
 
@@ -1088,7 +1128,7 @@ def add_comment(
     import uuid
 
     docs_service = _get_service("docs", "v1")
-    doc = docs_service.documents().get(documentId=doc_id).execute()
+    doc = _get_document(docs_service, doc_id)
     paragraphs = _extract_paragraphs(doc)
     full_text, text_map = _build_full_text_map(paragraphs)
 

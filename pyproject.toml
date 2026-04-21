@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "google-drive-mcp"
+name = "google-docs-mcp"
 version = "0.2.0"
-description = "MCP server for surgical Google Docs editing — search-by-text, not indices"
+description = "MCP server for surgical Google Docs editing and commenting"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -19,12 +19,14 @@ dependencies = [
 ]
 
 [project.scripts]
+google-docs-mcp = "server:main"
+google-docs-mcp-auth = "auth_setup:main"
 google-drive-mcp = "server:main"
 google-drive-mcp-auth = "auth_setup:main"
 
 [project.urls]
-Homepage = "https://github.com/dbuxton/google-drive-mcp"
-Repository = "https://github.com/dbuxton/google-drive-mcp"
+Homepage = "https://github.com/dbuxton/google-docs-mcp"
+Repository = "https://github.com/dbuxton/google-docs-mcp"
 
 [tool.setuptools]
 py-modules = ["server", "auth_setup", "docs_edit"]

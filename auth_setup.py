@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-auth_setup.py — Standalone OAuth setup for google-drive-mcp
+auth_setup.py — Standalone OAuth setup for google-docs-mcp
 ============================================================
 Works in three modes:
   1. Local browser  — opens a browser on this machine (default)
@@ -11,7 +11,7 @@ Usage:
     python3 auth_setup.py --credentials ~/credentials.json
     python3 auth_setup.py --credentials ~/credentials.json --headless
     python3 auth_setup.py --credentials ~/credentials.json --code "4/0Afr..."
-    GOOGLE_DRIVE_MCP_CLIENT_ID=... GOOGLE_DRIVE_MCP_CLIENT_SECRET=... python3 auth_setup.py
+    GOOGLE_DOCS_MCP_CLIENT_ID=... GOOGLE_DOCS_MCP_CLIENT_SECRET=... python3 auth_setup.py
 
 Get credentials.json:
     https://console.cloud.google.com/
@@ -34,7 +34,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-DEFAULT_TOKEN_PATH = Path.home() / ".google-drive-mcp" / "token.json"
+DEFAULT_TOKEN_PATH = Path.home() / ".google-docs-mcp" / "token.json"
 
 SCOPES = [
     # Core
@@ -55,8 +55,18 @@ SCOPES = [
 
 REDIRECT_PORT = 14399
 REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/oauth2/callback"
-CLIENT_ID_ENV_VAR = "GOOGLE_DRIVE_MCP_CLIENT_ID"
-CLIENT_SECRET_ENV_VAR = "GOOGLE_DRIVE_MCP_CLIENT_SECRET"
+CLIENT_ID_ENV_VAR = "GOOGLE_DOCS_MCP_CLIENT_ID"
+CLIENT_SECRET_ENV_VAR = "GOOGLE_DOCS_MCP_CLIENT_SECRET"
+CLIENT_ID_ENV_ALIASES = (CLIENT_ID_ENV_VAR, "GOOGLE_DRIVE_MCP_CLIENT_ID")
+CLIENT_SECRET_ENV_ALIASES = (CLIENT_SECRET_ENV_VAR, "GOOGLE_DRIVE_MCP_CLIENT_SECRET")
+
+
+def _first_env(*names: str) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
 
 
 def load_client_config(creds_path: Path) -> dict:
@@ -227,7 +237,7 @@ def run_code_exchange(code: str, client_id: str, client_secret: str, out_path: P
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Set up Google OAuth credentials for google-drive-mcp",
+        description="Set up Google OAuth credentials for google-docs-mcp",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -235,7 +245,7 @@ Examples:
   python3 auth_setup.py --credentials ~/credentials.json
 
   # Or use env vars instead of a credentials file:
-  GOOGLE_DRIVE_MCP_CLIENT_ID=... GOOGLE_DRIVE_MCP_CLIENT_SECRET=... python3 auth_setup.py
+  GOOGLE_DOCS_MCP_CLIENT_ID=... GOOGLE_DOCS_MCP_CLIENT_SECRET=... python3 auth_setup.py
 
   # Headless / remote server (prints URL, paste back redirect):
   python3 auth_setup.py --credentials ~/credentials.json --headless
@@ -275,8 +285,8 @@ Examples:
     )
     args = parser.parse_args()
 
-    env_client_id = os.environ.get(CLIENT_ID_ENV_VAR)
-    env_client_secret = os.environ.get(CLIENT_SECRET_ENV_VAR)
+    env_client_id = _first_env(*CLIENT_ID_ENV_ALIASES)
+    env_client_secret = _first_env(*CLIENT_SECRET_ENV_ALIASES)
     client_id = args.client_id or env_client_id
     client_secret = args.client_secret or env_client_secret
 
@@ -294,7 +304,8 @@ Examples:
     else:
         print(
             "Error: provide --credentials, both --client-id and --client-secret, "
-            f"or set both {CLIENT_ID_ENV_VAR} and {CLIENT_SECRET_ENV_VAR}",
+            f"or set both {CLIENT_ID_ENV_VAR} and {CLIENT_SECRET_ENV_VAR} "
+            "(legacy GOOGLE_DRIVE_MCP_* aliases also work)",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -316,11 +327,12 @@ Examples:
     print(f"✓ Token saved: {out_path}")
     print()
     print("Set this env var to use the token:")
-    print(f"  export GOOGLE_DRIVE_MCP_TOKEN={out_path}")
+    print(f"  export GOOGLE_DOCS_MCP_TOKEN={out_path}")
+    print("  # Legacy alias still works: export GOOGLE_DRIVE_MCP_TOKEN=...")
     print()
     print("Or add to your MCP config:")
     print(f"""  "env": {{
-    "GOOGLE_DRIVE_MCP_TOKEN": "{out_path}"
+    "GOOGLE_DOCS_MCP_TOKEN": "{out_path}"
   }}""")
 
 

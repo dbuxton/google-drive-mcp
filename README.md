@@ -1,8 +1,12 @@
-# google-drive-mcp
+# google-docs-mcp
 
 > Surgical Google Docs editing for AI agents — preserves history, never touches character indices.
 
 An MCP server that makes Google Docs actually usable for LLMs. **Standalone** — no other tools required beyond a Google Cloud OAuth app.
+
+Compatibility note: the repo, package, CLI, env vars, and default token path now use `google-docs-mcp`. Backward-compatible `google-drive-mcp` command and env-var aliases are still accepted so existing setups do not break immediately.
+
+Indexing note: when the MCP reads document content before planning index-based edits, it requests `suggestionsViewMode=SUGGESTIONS_INLINE`. That keeps returned indices aligned for later `documents.batchUpdate` calls when the doc contains suggestions.
 
 ## Why
 
@@ -17,24 +21,24 @@ This server uses the same abstraction as code editors: **search by text, not by 
 ### 1. Run directly from GitHub
 
 ```bash
-uvx --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp --help
+uvx --from git+https://github.com/dbuxton/google-docs-mcp google-docs-mcp --help
 ```
 
-That command downloads the package, creates an isolated environment, installs dependencies, and runs the `google-drive-mcp` entry point.
+That command downloads the package, creates an isolated environment, installs dependencies, and runs the `google-docs-mcp` entry point.
 
 No PyPI release is required. `uvx` can execute the tool straight from the GitHub repository.
 
 To pin to a branch, tag, or commit, add a ref to the URL:
 
 ```bash
-uvx --from git+https://github.com/dbuxton/google-drive-mcp@main google-drive-mcp --help
+uvx --from git+https://github.com/dbuxton/google-docs-mcp@main google-docs-mcp --help
 ```
 
 If you prefer a persistent local install instead of `uvx`, use:
 
 ```bash
-uv tool install --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp
-uv tool install --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp-auth
+uv tool install --from git+https://github.com/dbuxton/google-docs-mcp google-docs-mcp
+uv tool install --from git+https://github.com/dbuxton/google-docs-mcp google-docs-mcp-auth
 ```
 
 ### 2. Create a Google Cloud OAuth app
@@ -54,40 +58,40 @@ uv tool install --from git+https://github.com/dbuxton/google-drive-mcp google-dr
 
 **Normal — browser opens automatically:**
 ```bash
-uvx --from git+https://github.com/dbuxton/google-drive-mcp \
-  google-drive-mcp-auth --credentials ~/credentials.json
+uvx --from git+https://github.com/dbuxton/google-docs-mcp \
+  google-docs-mcp-auth --credentials ~/credentials.json
 ```
 
 **Or use env vars instead of a credentials file:**
 ```bash
-export GOOGLE_DRIVE_MCP_CLIENT_ID="your-google-client-id"
-export GOOGLE_DRIVE_MCP_CLIENT_SECRET="your-google-client-secret"
+export GOOGLE_DOCS_MCP_CLIENT_ID="your-google-client-id"
+export GOOGLE_DOCS_MCP_CLIENT_SECRET="your-google-client-secret"
 
-uvx --from git+https://github.com/dbuxton/google-drive-mcp \
-  google-drive-mcp-auth
+uvx --from git+https://github.com/dbuxton/google-docs-mcp \
+  google-docs-mcp-auth
 ```
 
 **Headless / remote server — no browser on device:**
 ```bash
-uvx --from git+https://github.com/dbuxton/google-drive-mcp \
-  google-drive-mcp-auth --credentials ~/credentials.json --headless
+uvx --from git+https://github.com/dbuxton/google-docs-mcp \
+  google-docs-mcp-auth --credentials ~/credentials.json --headless
 # Prints a URL → open on any device (phone, laptop, etc.)
 # Paste the full redirect URL back into the terminal
 ```
 
 **Already have an auth code:**
 ```bash
-uvx --from git+https://github.com/dbuxton/google-drive-mcp \
-  google-drive-mcp-auth --credentials ~/credentials.json --code "4/0Afr..."
+uvx --from git+https://github.com/dbuxton/google-docs-mcp \
+  google-docs-mcp-auth --credentials ~/credentials.json --code "4/0Afr..."
 ```
 
-`google-drive-mcp-auth` resolves OAuth client credentials in this order:
+`google-docs-mcp-auth` resolves OAuth client credentials in this order:
 
 1. `--credentials /path/to/credentials.json`
 2. `--client-id` and `--client-secret`
-3. `GOOGLE_DRIVE_MCP_CLIENT_ID` and `GOOGLE_DRIVE_MCP_CLIENT_SECRET`
+3. `GOOGLE_DOCS_MCP_CLIENT_ID` and `GOOGLE_DOCS_MCP_CLIENT_SECRET`
 
-Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--out /path/to/token.json`.
+Token is saved to `~/.google-docs-mcp/token.json` by default. Override with `--out /path/to/token.json`.
 
 ### 4. Configure your MCP client
 
@@ -95,11 +99,11 @@ Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--
 ```json
 {
   "mcpServers": {
-    "google-drive": {
+    "google-docs": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/dbuxton/google-drive-mcp", "google-drive-mcp"],
+      "args": ["--from", "git+https://github.com/dbuxton/google-docs-mcp", "google-docs-mcp"],
       "env": {
-        "GOOGLE_DRIVE_MCP_TOKEN": "/Users/you/.google-drive-mcp/token.json"
+        "GOOGLE_DOCS_MCP_TOKEN": "/Users/you/.google-docs-mcp/token.json"
       }
     }
   }
@@ -111,11 +115,11 @@ Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--
 {
   "mcp": {
     "servers": {
-      "google-drive": {
+      "google-docs": {
         "command": "uvx",
-        "args": ["--from", "git+https://github.com/dbuxton/google-drive-mcp", "google-drive-mcp"],
+        "args": ["--from", "git+https://github.com/dbuxton/google-docs-mcp", "google-docs-mcp"],
         "env": {
-          "GOOGLE_DRIVE_MCP_TOKEN": "~/.google-drive-mcp/token.json"
+          "GOOGLE_DOCS_MCP_TOKEN": "~/.google-docs-mcp/token.json"
         }
       }
     }
@@ -127,11 +131,11 @@ Token is saved to `~/.google-drive-mcp/token.json` by default. Override with `--
 ```json
 {
   "mcpServers": {
-    "google-drive": {
+    "google-docs": {
       "command": "uvx",
-      "args": ["--from", "/absolute/path/to/google-drive-mcp", "google-drive-mcp"],
+      "args": ["--from", "/absolute/path/to/google-docs-mcp", "google-docs-mcp"],
       "env": {
-        "GOOGLE_DRIVE_MCP_TOKEN": "/Users/you/.google-drive-mcp/token.json"
+        "GOOGLE_DOCS_MCP_TOKEN": "/Users/you/.google-docs-mcp/token.json"
       }
     }
   }
@@ -151,20 +155,20 @@ Required one-time setup:
 2. Create a standalone Apps Script project to use as the bridge
 3. In that Apps Script project, open **Project Settings** and switch it to the
    **same standard Google Cloud project** as the OAuth client used by
-   `google-drive-mcp`
+   `google-docs-mcp`
 4. In that same Google Cloud project, ensure **Apps Script API** is enabled
 5. Set the bridge script ID in the MCP process environment:
 
 ```bash
-export GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID="1C6nchmQRobIwK8ELFe29k-XV2t7mUnhKiSpEKHThXOFHAL6Ahy4_Xju4"
+export GOOGLE_DOCS_MCP_APPS_SCRIPT_ID="1C6nchmQRobIwK8ELFe29k-XV2t7mUnhKiSpEKHThXOFHAL6Ahy4_Xju4"
 ```
 
 Example `uvx` launch with both token + Apps Script bridge:
 
 ```bash
-GOOGLE_DRIVE_MCP_TOKEN="$HOME/.google-drive-mcp/token.json" \
-GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID="your-apps-script-id" \
-uvx --from git+https://github.com/dbuxton/google-drive-mcp google-drive-mcp
+GOOGLE_DOCS_MCP_TOKEN="$HOME/.google-docs-mcp/token.json" \
+GOOGLE_DOCS_MCP_APPS_SCRIPT_ID="your-apps-script-id" \
+uvx --from git+https://github.com/dbuxton/google-docs-mcp google-docs-mcp
 ```
 
 If the Apps Script bridge is still using its hidden default project, `scripts.run`
@@ -348,7 +352,7 @@ docs_add_comment(
 
 > **Note:** The current implementation uses Drive comments plus a Docs named range. In the Docs UI these still show as *"Original content deleted"* rather than as proper inline highlights. The comments are fully readable via `docs_read_comments` and the Docs 💬 panel.
 >
-> When `bookmark_jump=true`, the tool additionally uses Apps Script automation to create a bookmark at the anchor text and appends a `#bookmark=id...` jump URL into the comment body. This requires the `GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID` env var and the Apps Script bridge setup documented above.
+> When `bookmark_jump=true`, the tool additionally uses Apps Script automation to create a bookmark at the anchor text and appends a `#bookmark=id...` jump URL into the comment body. This requires the `GOOGLE_DOCS_MCP_APPS_SCRIPT_ID` env var and the Apps Script bridge setup documented above.
 >
 > A probe helper is included for this workstream:
 >
@@ -454,9 +458,14 @@ docs_delete_comment(doc_id="...", comment_id="AAAB1iPyaUY")
 
 | Variable | Description |
 |----------|-------------|
-| `GOOGLE_DRIVE_MCP_TOKEN` | Path to token file (preferred for standalone use) |
+| `GOOGLE_DOCS_MCP_TOKEN` | Path to token file (preferred for standalone use) |
+| `GOOGLE_DOCS_MCP_CLIENT_ID` | Optional OAuth client ID override |
+| `GOOGLE_DOCS_MCP_CLIENT_SECRET` | Optional OAuth client secret override |
+| `GOOGLE_DOCS_MCP_APPS_SCRIPT_ID` | Apps Script bridge project ID for `bookmark_jump=true` |
 | `GOOGLE_DOCS_TOKEN_FILE` | Legacy alias |
 | `GOG_KEYRING_PASSWORD` | Auto-export from gog CLI (for personal/OpenClaw use) |
+
+Legacy `GOOGLE_DRIVE_MCP_*` env var aliases still work for backward compatibility.
 
 ---
 

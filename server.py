@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-google-drive-mcp — Surgical Google Docs editing for AI agents
+google-docs-mcp — Surgical Google Docs editing for AI agents
 =============================================================
 Exposes Google Docs and Drive operations as MCP tools.
 
@@ -18,15 +18,17 @@ Tools:
   Manage:   docs_list, docs_create
 
 Auth (in priority order):
-  1. GOOGLE_DRIVE_MCP_TOKEN env var  — standalone token (auth_setup.py)
-  2. GOOGLE_DOCS_TOKEN_FILE env var  — legacy alias
-  3. ~/.google-drive-mcp/token.json  — default standalone location
-  4. GOG_KEYRING_PASSWORD env var    — auto-export from gog CLI
+  1. GOOGLE_DOCS_MCP_TOKEN env var   — standalone token (auth_setup.py)
+  2. GOOGLE_DRIVE_MCP_TOKEN env var  — backward-compatible alias
+  3. GOOGLE_DOCS_TOKEN_FILE env var  — legacy gog alias
+  4. ~/.google-docs-mcp/token.json   — default standalone location
+  5. ~/.google-drive-mcp/token.json  — backward-compatible fallback
+  6. GOG_KEYRING_PASSWORD env var    — auto-export from gog CLI
 
 Setup:
   python3 auth_setup.py --credentials ~/credentials.json
   python3 auth_setup.py --credentials ~/credentials.json --headless  # no browser
-  GOOGLE_DRIVE_MCP_CLIENT_ID=... GOOGLE_DRIVE_MCP_CLIENT_SECRET=... python3 auth_setup.py
+  GOOGLE_DOCS_MCP_CLIENT_ID=... GOOGLE_DOCS_MCP_CLIENT_SECRET=... python3 auth_setup.py
 
 Transport: stdio (Claude Desktop / OpenClaw MCP config)
 """
@@ -49,7 +51,7 @@ import docs_edit
 logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
 
 mcp = FastMCP(
-    name="google-drive-mcp",
+    name="google-docs-mcp",
     instructions="""
 Surgical Google Docs editing — search by text, never by character index.
 
@@ -281,7 +283,7 @@ def docs_add_comment(
     does not render a proper inline highlight with the current API path.
 
     When bookmark_jump=True, the tool also uses a persistent Apps Script bridge
-    (configured via GOOGLE_DRIVE_MCP_APPS_SCRIPT_ID) to create a bookmark at the
+    (configured via GOOGLE_DOCS_MCP_APPS_SCRIPT_ID) to create a bookmark at the
     target text, then appends a #bookmark jump URL into the comment body.
 
     Args:
