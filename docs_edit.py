@@ -156,6 +156,58 @@ def _load_token() -> dict:
     )
 
 
+_HTTP_TIMEOUT = 180
+_HTTP_TRIES = 4
+_IDEMPOTENT = {"GET", "HEAD", "OPTIONS"}
+
+
+class _ResilientHttp:
+    """httplib2 client that closes each connection and retries dropped ones.
+
+    The link to googleapis drops in bursts: a pooled connection goes stale,
+    the next call fails with ConnectionResetError, and the network is fine all
+    along. Sending `connection: close` keeps stale sockets out of the pool, and
+    the retry rides out the burst itself.
+
+    Reads retry up to _HTTP_TRIES times. Writes retry once and only once: a
+    dropped connection is indistinguishable from a lost response, so a longer
+    retry chain risks applying the same edit twice.
+    """
+
+    def __init__(self):
+        import httplib2
+        self._httplib2 = httplib2
+        self._http = httplib2.Http(timeout=_HTTP_TIMEOUT)
+
+    def request(self, uri, method="GET", body=None, headers=None, **kwargs):
+        import ssl
+        import time
+
+        headers = dict(headers or {})
+        headers["connection"] = "close"
+        tries = _HTTP_TRIES if method.upper() in _IDEMPOTENT else 2
+
+        for attempt in range(tries):
+            try:
+                return self._http.request(uri, method, body, headers, **kwargs)
+            except (ConnectionError, TimeoutError, ssl.SSLError,
+                    self._httplib2.HttpLib2Error) as exc:
+                if attempt == tries - 1:
+                    raise
+                self._http = self._httplib2.Http(timeout=_HTTP_TIMEOUT)
+                time.sleep(2 * (attempt + 1))
+
+    def __getattr__(self, name):
+        return getattr(self._http, name)
+
+
+def _authorized_http(creds=None):
+    """AuthorizedHttp over the resilient transport."""
+    import google_auth_httplib2
+    return google_auth_httplib2.AuthorizedHttp(
+        creds or _load_creds(), http=_ResilientHttp())
+
+
 def _load_creds():
     """Return refreshed google.oauth2.credentials.Credentials."""
     from google.oauth2.credentials import Credentials
@@ -196,14 +248,19 @@ def _load_creds():
         client_secret=client_secret,
         scopes=scopes,
     )
-    creds.refresh(Request())
+    # Same reason as _ResilientHttp: the default session pools connections and
+    # the token endpoint drops them, so every request opens a fresh one.
+    import requests as _requests
+    session = _requests.Session()
+    session.headers["Connection"] = "close"
+    creds.refresh(Request(session))
     return creds
 
 
 def _get_service(api: str = "docs", version: str = "v1"):
     """Build a Google API service client."""
     from googleapiclient.discovery import build
-    return build(api, version, credentials=_load_creds())
+    return build(api, version, http=_authorized_http(), cache_discovery=False)
 
 
 SUGGESTIONS_VIEW_MODE = "SUGGESTIONS_INLINE"

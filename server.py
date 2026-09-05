@@ -326,9 +326,7 @@ def docs_reply_to_comment(doc_id: str, comment_id: str, reply: str) -> str:
     Returns:
         JSON with: ok, reply_id, comment_id, content
     """
-    from googleapiclient.discovery import build
-    creds = docs_edit._load_creds()
-    drive = build("drive", "v3", credentials=creds)
+    drive = docs_edit._get_service("drive", "v3")
     result = drive.replies().create(
         fileId=doc_id,
         commentId=comment_id,
@@ -356,9 +354,7 @@ def docs_resolve_comment(doc_id: str, comment_id: str, reply: str = "") -> str:
     Returns:
         JSON with: ok, comment_id, resolved
     """
-    from googleapiclient.discovery import build
-    creds = docs_edit._load_creds()
-    drive = build("drive", "v3", credentials=creds)
+    drive = docs_edit._get_service("drive", "v3")
 
     # In Drive v3, the `resolved` field on the Comment resource is effectively
     # set by posting a reply with action="resolve" — `comments.update` either
@@ -396,9 +392,7 @@ def docs_delete_comment(doc_id: str, comment_id: str) -> str:
     Returns:
         JSON with: ok, comment_id
     """
-    from googleapiclient.discovery import build
-    creds = docs_edit._load_creds()
-    drive = build("drive", "v3", credentials=creds)
+    drive = docs_edit._get_service("drive", "v3")
     drive.comments().delete(fileId=doc_id, commentId=comment_id).execute()
     return json.dumps({"ok": True, "comment_id": comment_id}, indent=2)
 
@@ -420,11 +414,9 @@ def docs_read_comments(doc_id: str, include_resolved: bool = False) -> str:
         JSON array of comments with id, content, author, anchored, resolved, deleted,
         anchored_to (the named range id if anchored), created_time
     """
-    from googleapiclient.discovery import build
     import json as _json
 
-    creds = docs_edit._load_creds()
-    drive = build("drive", "v3", credentials=creds)
+    drive = docs_edit._get_service("drive", "v3")
 
     resp = drive.comments().list(
         fileId=doc_id,
@@ -473,9 +465,7 @@ def docs_list(query: str = "", limit: int = 20) -> str:
     Returns:
         JSON array of {id, name, modifiedTime, webViewLink}
     """
-    from googleapiclient.discovery import build
-    creds = docs_edit._load_creds()
-    drive = build("drive", "v3", credentials=creds)
+    drive = docs_edit._get_service("drive", "v3")
 
     q = 'mimeType="application/vnd.google-apps.document" and trashed=false'
     if query:
@@ -504,10 +494,7 @@ def docs_create(title: str, initial_text: str = "") -> str:
     Returns:
         JSON with: id, title, webViewLink
     """
-    creds = docs_edit._load_creds()
-    from googleapiclient.discovery import build
-
-    service = build("docs", "v1", credentials=creds)
+    service = docs_edit._get_service("docs", "v1")
     doc = service.documents().create(body={"title": title}).execute()
     doc_id = doc["documentId"]
 
